@@ -1,57 +1,100 @@
 # Spicetify Fix — User Mode
 
-> If you use a modified Windows and Spicetify completely refuses to install because the command runs as Administrator — this is for you.
+> If you use a modified Windows image where every shell runs elevated, and
+> Spicetify's installer refuses to run because of it, this tiny launcher gets
+> the official installer into a non-elevated context.
 
-### The Problem
-Some modified Windows builds run everything as `Administrator` by default.  
-Spicetify installation fails with:
+## The problem
+
+Some modified Windows builds launch terminals as `Administrator` all the time.
+Spicetify's installer expects a normal user context and exits when it detects
+elevation:
 
 ```powershell
 iwr -useb https://raw.githubusercontent.com/spicetify/cli/main/install.ps1 | iex
 ```
 
-It requires a normal `User` context, not Administrator.
+## What this does
 
-### The Solution
-This lightweight tool fixes it automatically:
+`SpicetifyFix` is a 500-line WinForms launcher with one button:
 
-- **If Administrator** → opens PowerShell as `User` via `runas /trustlevel:0x20000` and runs the install
-- **If User** → opens PowerShell directly and runs the install
-- Keeps the PowerShell window open so you can see the result
+- If the current process **is elevated**, it starts PowerShell through
+  `runas /trustlevel:0x20000` (a restricted "basic user" token) and runs the
+  official Spicetify installer there.
+- If it is **not elevated**, it starts PowerShell directly.
+- The window stays open (`-NoExit`) so you can read the result.
 
-### Usage
-1. Download `SpicetifyFix.exe` and `run_spicetify.ps1` (keep them in the same folder)
-2. Double-click `SpicetifyFix.exe`
-3. Click **Install Spicetify**
-4. A PowerShell window opens as User and installs automatically
+It does not download, modify or bundle Spicetify itself, and it does not loop
+or relaunch itself.
 
-### Design
-- Clean white design — black border — minimal progress bar like native Windows apps
-- Single lightweight EXE (~9KB), no dependencies
-- No fork bomb, no auto-relaunch loops
+## Repository contents
 
-### Structure
-```
+```text
 Spicetify-Fix-UserMode/
-├── SpicetifyFix.exe      # App (white native design)
-├── run_spicetify.ps1     # Install script
-├── src/
-│   └── SpicetifyFix.cs   # Organized source
-└── README.md
+├── README.md
+└── src/
+    └── SpicetifyFix.cs   # the whole app
 ```
 
-### Build from Source
+There is **no prebuilt EXE and no `run_spicetify.ps1` in the repository.**
+The app creates `run_spicetify.ps1` next to the EXE on first use, containing
+the official installer command and `pause`.
+
+## Build
+
+Compile with the .NET Framework compiler that ships with Windows:
+
 ```powershell
-csc /target:winexe /out:SpicetifyFix.exe src/SpicetifyFix.cs /reference:System.Windows.Forms.dll /reference:System.Drawing.dll
+& "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe" `
+  /target:winexe /out:SpicetifyFix.exe `
+  /reference:System.Windows.Forms.dll /reference:System.Drawing.dll `
+  src\SpicetifyFix.cs
 ```
 
-### Requirements
+The result is a small framework-dependent EXE that runs on any Windows 10/11
+with .NET Framework 4.x (preinstalled).
+
+## Use
+
+1. Put `SpicetifyFix.exe` in any writable folder.
+2. Double-click it and press **Install Spicetify**.
+3. A PowerShell window opens and runs the official installer. Keep it open
+   until it finishes.
+
+### Manual alternative
+
+You do not need this tool. Open a normal (non-elevated) PowerShell and run:
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/spicetify/cli/main/install.ps1 | iex
+```
+
+If your shell always starts elevated, `runas /trustlevel:0x20000 powershell`
+gives you a restricted token for the same account. Note that this is **not** a
+separate user account or a security boundary — it is the same profile with a
+filtered token.
+
+## Requirements
+
 - Windows 10 / 11
-- .NET Framework 4.x (preinstalled)
+- .NET Framework 4.x
 - Spotify installed
+- Internet access for the official Spicetify installer
 
----
-Made for modified Windows users.
+## Notes and limits
 
+- The app only automates one command; it does not patch Spotify or install
+  themes/marketplace by itself.
+- Do not run the installer as a different administrator account if Spotify is
+  installed per-user — Spicetify installs into the current profile.
+- The official installer prints its own prompts and errors; read them.
 
-DEV: Mr-Glint
+## Credits
+
+DEV: Mr-Glint. Spicetify is a separate open-source project:
+<https://github.com/spicetify/cli>.
+
+## License
+
+No license file is included. The source is published for reference; contact
+the author before redistributing.
